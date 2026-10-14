@@ -27,7 +27,7 @@ function inputPorts(){const previous=input?.id;const available=[...midi.inputs.v
 async function chooseInput(){clearLive();if(input)input.onmidimessage=null;input=null;const candidate=midi?.inputs.get($('input').value);if(!candidate)return;try{await candidate.open();input=candidate;input.onmidimessage=receiveMidi;status(`Keyboard audio ready: ${input.name}. Play a key to hear it.`);}catch(e){status(`Could not open MIDI input: ${e.message}`);}}
 $('input').onchange=chooseInput;$('audio').onchange=()=>{if(!$('audio').checked){piano?.clear();voices.clear();}else enableAudio().catch(e=>status(e.message));};
 let buttonApiPort=null;
-function updateButtonApi(){if(!$('buttonSeek').checked||!output||!input||!midi?.sysexEnabled){buttonApiPort=null;return;}try{if(buttonApiPort!==output){output.send(apiCommand(0));buttonApiPort=output;}output.send(apiCommand(3));}catch(e){buttonApiPort=null;status(`Keyboard button connection failed: ${e.message}`);}}
+function updateButtonApi(){if(!$('buttonSeek').checked||!output||!input||!midi?.sysexEnabled){buttonApiPort=null;return;}try{output.send(apiCommand(0));buttonApiPort=output;output.send(apiCommand(3));}catch(e){buttonApiPort=null;status(`Keyboard button connection failed: ${e.message}`);}}
 $('buttonSeek').onchange=()=>{updateButtonApi();if($('buttonSeek').checked)status(input&&output?'Piano left / right arrows seek 5 seconds. Their native program-change function may also occur.':'Connect the Piano input and output to use its buttons.');};
 setInterval(updateButtonApi,1000);
 const now=()=>performance.now();
@@ -56,8 +56,12 @@ $('stop').onclick=async()=>{
 };
 $('demo').onclick=demo;
 $('file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('Please use a MIDI file smaller than 20 MB.');load(parseMidi(await file.arrayBuffer()),file.name.replace(/\.midi?$/i,''));}catch(error){status(error.message);}e.target.value='';};
-let seekBusy=false;
-async function seekTo(time){if(seekBusy)return;seekBusy=true;try{const resume=playing;pause();position=Math.max(0,Math.min(song.duration,time));$('seek').value=position;if(resume&&position<song.duration)await play();}finally{seekBusy=false;}}
+function seekTo(time){
+ const resume=playing;silence();position=Math.max(0,Math.min(song.duration,time));origin=now();
+ playing=resume&&position<song.duration;scheduledTo=position-.000001;
+ $('seek').value=position;$('play').textContent=playing?'Ⅱ Pause':'▶ Play';
+ updateButtonApi();if(playing)schedule();
+}
 $('seek').oninput=()=>seekTo(Number($('seek').value));
 document.addEventListener('keydown',event=>{
  if(!noticeAccepted||document.querySelector('main').inert||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey)return;
