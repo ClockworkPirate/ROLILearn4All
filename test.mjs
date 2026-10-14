@@ -1,0 +1,7 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseMidi,sounding} from './midi.js';
+const ascii=s=>[...s].map(c=>c.charCodeAt(0));
+function file(track){return new Uint8Array([...ascii('MThd'),0,0,0,6,0,0,0,1,0,96,...ascii('MTrk'),0,0,0,track.length,...track]).buffer;}
+test('tempo changes and running status produce correct durations',()=>{const song=parseMidi(file([0,0x90,60,100,96,60,0,0,255,81,3,15,66,64,0,0x90,64,100,96,0x80,64,0,0,255,47,0]));assert.equal(song.notes.length,2);assert.equal(song.notes[0].end,.5);assert.equal(song.notes[1].start,.5);assert.equal(song.notes[1].end,1.5);});
+test('overlapping tracks keep a pitch active and track filtering works',()=>{const notes=[{track:0,pitch:60,start:0,end:2},{track:1,pitch:60,start:1,end:3}];assert.deepEqual([...sounding(notes,2,new Set([0,1]))],[60]);assert.equal(sounding(notes,2,new Set([0])).size,0);assert.equal(sounding(notes,3,new Set([0,1])).size,0);});
+test('rejects truncated input and unsupported timing',()=>{assert.throws(()=>parseMidi(new ArrayBuffer(0)),/Truncated/);const b=new Uint8Array(file([]));b[12]=128;assert.throws(()=>parseMidi(b.buffer),/PPQ/);});
+test('velocity zero releases notes and end track closes unmatched notes',()=>{const song=parseMidi(file([0,0x90,60,100,96,60,0,0,0x90,62,80,96,255,47,0]));assert.deepEqual(song.notes.map(n=>[n.pitch,n.start,n.end]),[[60,0,.5],[62,.5,1]]);});
