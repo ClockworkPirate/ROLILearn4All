@@ -50,7 +50,8 @@ $('stop').onclick=async()=>{
 };
 $('demo').onclick=demo;
 $('file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('Please use a MIDI file smaller than 20 MB.');load(parseMidi(await file.arrayBuffer()),file.name.replace(/\.midi?$/i,''));}catch(error){status(error.message);}e.target.value='';};
-function seekTo(time){const resume=playing;pause();position=Math.max(0,Math.min(song.duration,time));$('seek').value=position;if(resume)play();}
+let seekBusy=false;
+async function seekTo(time){if(seekBusy)return;seekBusy=true;try{const resume=playing;pause();position=Math.max(0,Math.min(song.duration,time));$('seek').value=position;if(resume&&position<song.duration)await play();}finally{seekBusy=false;}}
 $('seek').oninput=()=>seekTo(Number($('seek').value));
 document.addEventListener('keydown',event=>{
  if(!noticeAccepted||document.querySelector('main').inert||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey)return;
