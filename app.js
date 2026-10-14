@@ -22,7 +22,7 @@ function pause(){position=current();playing=false;silence();$('play').textConten
 function restartSchedule(){silence();scheduledTo=position-0.000001;}
 function load(next,title){pause();song=next;position=0;selected=new Set(song.tracks.map((_,i)=>i));$('title').textContent=title;$('seek').max=song.duration;$('tracks').replaceChildren();song.tracks.forEach((track,i)=>{const label=document.createElement('label');label.className='check';const box=document.createElement('input');box.type='checkbox';box.checked=true;box.addEventListener('change',()=>{const resume=playing;pause();box.checked?selected.add(i):selected.delete(i);if(resume)play();});label.append(box,document.createTextNode(track.name||`Track ${i+1}`));label.style.color=colors[i%colors.length];$('tracks').append(label);});status(`${song.notes.length} notes · ${song.tracks.length} tracks · Files stay on your computer.`);}
 function demo(){const notes=[];[60,64,67,72,71,67,64,62,65,69,74,72,69,65,64,60].forEach((pitch,i)=>notes.push({pitch,start:i*.5,end:i*.5+.42,track:0,velocity:100}));[48,53,55,48].forEach((pitch,i)=>notes.push({pitch,start:i*2,end:i*2+1.8,track:1,velocity:80}));load({notes,tracks:[{name:'Melody'},{name:'Left hand'}],duration:8.5},'A little warm-up');}
-async function play(){if(playing){pause();return;}if(!song.notes.length){status('This file has no notes to play.');return;}if(position>=song.duration)position=0;if($('audio').checked){audioContext??=new AudioContext();await audioContext.resume();}origin=now();playing=true;restartSchedule();$('play').textContent='Ⅱ Pause';}
+async function play(){if(playing){pause();return;}if(!song.notes.length){status('This file has no notes to play.');return;}if(position>=song.duration)position=0;if($('audio').checked){await enableAudio();}origin=now();playing=true;restartSchedule();$('play').textContent='Ⅱ Pause';}
 function sendDiff(next,timestamp){if(output){for(const p of planned)if(!next.has(p))output.send([0x80,p,0],timestamp);for(const p of next)if(!planned.has(p))output.send([0x90,p,127],timestamp);}planned=next;}
 function schedule(){if(!playing)return;const time=current(),until=Math.min(song.duration,time+.12*rate);try{if(scheduledTo<time){sendDiff(sounding(song.notes,time,selected),now());scheduledTo=time;}
  const boundaries=new Set();for(const n of song.notes)if(selected.has(n.track)){if(n.start>scheduledTo&&n.start<=until)boundaries.add(n.start);if(n.end>scheduledTo&&n.end<=until)boundaries.add(n.end);}for(const t of [...boundaries].sort((a,b)=>a-b))sendDiff(sounding(song.notes,t,selected),origin+(t-position)/rate*1000);scheduledTo=until;
@@ -47,5 +47,6 @@ function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixel
  $('time').textContent=`${fmt(time)} / ${fmt(song.duration)}`;if(document.activeElement!==$('seek'))$('seek').value=time;requestAnimationFrame(draw);
 }
 demo();draw();
+
 
 
