@@ -1,5 +1,6 @@
 import {parseMidi,sounding,upcoming} from './midi.js';
 import {Piano,decodeNote} from './piano.js';
+import {buttonEvents,apiCommand} from './buttons.js';
 const riskDialog=document.getElementById('riskNotice');
 let noticeAccepted=false;
 riskDialog.close();riskDialog.showModal();
@@ -18,12 +19,17 @@ async function enableAudio(){if(!noticeAccepted||!$('audio').checked)return;audi
 document.addEventListener('pointerdown',()=>{enableAudio().catch(e=>status(`Audio unavailable: ${e.message}`));});
 function clearLive(){held.clear();pedal.clear();piano?.clear('live:');}
 function receiveMidi(event){const data=event.data,ch=data[0]&15;
+ if(data[0]===240){if($('buttonSeek').checked&&noticeAccepted&&!document.querySelector('main').inert)for(const button of buttonEvents(data))if(button.down&&(button.id===1||button.id===2)){seekTo(current()+(button.id===2?5:-5));}return;}
  if((data[0]&240)===176){if(data[1]===64){if(data[2]>=64)pedal.add(ch);else{pedal.delete(ch);for(const [key,n] of held)if(n.channel===ch&&!n.down){piano?.stop(key);held.delete(key);}}}else if(data[1]===120||data[1]===123)clearLive();return;}
  const n=decodeNote(data);if(!n)return;const key=`live:${n.channel}:${n.pitch}`;if(n.on){held.set(key,{...n,down:true});if($('audio').checked&&audioContext?.state==='running')piano.start(key,n.pitch,n.velocity);}else{const note=held.get(key);if(note&&pedal.has(n.channel))note.down=false;else{held.delete(key);piano?.stop(key);}}
 }
 function inputPorts(){const previous=input?.id;const available=[...midi.inputs.values()].filter(p=>p.state==='connected');$('input').replaceChildren();$('input').add(new Option(available.length?'Choose keyboard input':'No MIDI inputs detected',''));for(const port of available)$('input').add(new Option(port.name||port.id,port.id));$('input').disabled=!available.length;if(previous&&available.some(p=>p.id===previous))$('input').value=previous;else{if(input)input.onmidimessage=null;input=null;clearLive();const roli=available.find(p=>/ROLI|LUMI/i.test(p.name));if(roli){$('input').value=roli.id;chooseInput();}}}
 async function chooseInput(){clearLive();if(input)input.onmidimessage=null;input=null;const candidate=midi?.inputs.get($('input').value);if(!candidate)return;try{await candidate.open();input=candidate;input.onmidimessage=receiveMidi;status(`Keyboard audio ready: ${input.name}. Play a key to hear it.`);}catch(e){status(`Could not open MIDI input: ${e.message}`);}}
 $('input').onchange=chooseInput;$('audio').onchange=()=>{if(!$('audio').checked){piano?.clear();voices.clear();}else enableAudio().catch(e=>status(e.message));};
+let buttonApiPort=null;
+function updateButtonApi(){if(!$('buttonSeek').checked||!output||!input||!midi?.sysexEnabled){buttonApiPort=null;return;}try{if(buttonApiPort!==output){output.send(apiCommand(0));buttonApiPort=output;}output.send(apiCommand(3));}catch(e){buttonApiPort=null;status(`Keyboard button connection failed: ${e.message}`);}}
+$('buttonSeek').onchange=()=>{updateButtonApi();if($('buttonSeek').checked)status(input&&output?'Piano − / + seek 5 seconds. Their octave function may also occur.':'Connect the Piano input and output to use its buttons.');};
+setInterval(updateButtonApi,1000);
 const now=()=>performance.now();
 const current=()=>playing?Math.min(song.duration,position+(now()-origin)/1000*rate):position;
 const status=text=>{$('status').textContent=text;};
