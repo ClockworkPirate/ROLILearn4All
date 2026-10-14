@@ -1,6 +1,8 @@
 import {parseMidi,sounding,upcoming} from './midi.js';
 import {Piano,decodeNote} from './piano.js';
 import {buttonEvents,apiCommand} from './buttons.js';
+import {Practice} from './practice.js';
+let practice=null;
 const riskDialog=document.getElementById('riskNotice');
 let noticeAccepted=false;
 riskDialog.close();riskDialog.showModal();
@@ -21,7 +23,7 @@ function clearLive(){held.clear();pedal.clear();piano?.clear('live:');}
 function receiveMidi(event){const data=event.data,ch=data[0]&15;
  if(data[0]===240){if($('buttonSeek').checked&&noticeAccepted&&!document.querySelector('main').inert)for(const button of buttonEvents(data))if(button.down&&(button.id===3||button.id===4)){seekTo(current()+(button.id===4?5:-5));}return;}
  if((data[0]&240)===176){if(data[1]===64){if(data[2]>=64)pedal.add(ch);else{pedal.delete(ch);for(const [key,n] of held)if(n.channel===ch&&!n.down){piano?.stop(key);held.delete(key);}}}else if(data[1]===120||data[1]===123)clearLive();return;}
- const n=decodeNote(data);if(!n)return;const key=`live:${n.channel}:${n.pitch}`;if(n.on){held.set(key,{...n,down:true});if($('audio').checked&&audioContext?.state==='running')piano.start(key,n.pitch,n.velocity);}else{const note=held.get(key);if(note&&pedal.has(n.channel))note.down=false;else{held.delete(key);piano?.stop(key);}}
+ const n=decodeNote(data);if(!n)return;const key=`live:${n.channel}:${n.pitch}`;if(n.on){held.set(key,{...n,down:true});if($('audio').checked&&audioContext?.state==='running')piano.start(key,n.pitch,n.velocity);if(playing&&practice?.waiting){const frozen=current();if(practice.press(n.pitch)){position=frozen;origin=now();status('Correct. Continue to the next notes.');}else showRequired();}}else{const note=held.get(key);if(note&&pedal.has(n.channel))note.down=false;else{held.delete(key);piano?.stop(key);}}
 }
 function inputPorts(){const previous=input?.id;const available=[...midi.inputs.values()].filter(p=>p.state==='connected');$('input').replaceChildren();$('input').add(new Option(available.length?'Choose keyboard input':'No MIDI inputs detected',''));for(const port of available)$('input').add(new Option(port.name||port.id,port.id));$('input').disabled=!available.length;if(previous&&available.some(p=>p.id===previous))$('input').value=previous;else{if(input)input.onmidimessage=null;input=null;clearLive();const roli=available.find(p=>/ROLI|LUMI/i.test(p.name));if(roli){$('input').value=roli.id;chooseInput();}}}
 async function chooseInput(){clearLive();if(input)input.onmidimessage=null;input=null;const candidate=midi?.inputs.get($('input').value);if(!candidate)return;try{await candidate.open();input=candidate;input.onmidimessage=receiveMidi;status(`Keyboard audio ready: ${input.name}. Play a key to hear it.`);}catch(e){status(`Could not open MIDI input: ${e.message}`);}}
@@ -31,21 +33,22 @@ function updateButtonApi(){if(!$('buttonSeek').checked||!output||!input||!midi?.
 $('buttonSeek').onchange=()=>{updateButtonApi();if($('buttonSeek').checked)status(input&&output?'Piano left / right arrows seek 5 seconds. Their native program-change function may also occur.':'Connect the Piano input and output to use its buttons.');};
 setInterval(updateButtonApi,1000);
 const now=()=>performance.now();
-const current=()=>playing?Math.min(song.duration,position+(now()-origin)/1000*rate):position;
+const current=()=>playing?Math.min(song.duration,practice?.next?.time??Infinity,position+(now()-origin)/1000*rate):position;
+function showRequired(){if(practice?.waiting)status(`Waiting for: ${[...practice.missing].map(p=>['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][p%12]+(Math.floor(p/12)-1)).join(', ')}. Play these notes on your keyboard.`);}
 const status=text=>{$('status').textContent=text;};
 const fmt=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
 function silence(){if(output){try{if(typeof output.clear==='function')output.clear();for(let p=0;p<128;p++)output.send([0x80,p,0]);}catch(e){status(`MIDI connection lost: ${e.message}`);}}planned.clear();piano?.clear('song:');voices.clear();}
-function pause(){position=current();playing=false;silence();$('play').textContent='▶ Play';}
-function restartSchedule(){silence();scheduledTo=position-0.000001;}
+function pause(){position=current();playing=false;practice=null;silence();$('play').textContent='▶ Play';}
+function restartSchedule(){silence();practice=$('stepMode').checked?new Practice(song.notes,selected,position):null;scheduledTo=position-0.000001;}
 function load(next,title){pause();song=next;position=0;selected=new Set(song.tracks.map((_,i)=>i));$('title').textContent=title;$('seek').max=song.duration;$('tracks').replaceChildren();song.tracks.forEach((track,i)=>{const label=document.createElement('label');label.className='check';const box=document.createElement('input');box.type='checkbox';box.checked=true;box.addEventListener('change',()=>{const resume=playing;pause();box.checked?selected.add(i):selected.delete(i);if(resume)play();});label.append(box,document.createTextNode(track.name||`Track ${i+1}`));label.style.color=colors[i%colors.length];$('tracks').append(label);});status(`${song.notes.length} notes · ${song.tracks.length} tracks · Files stay on your computer.`);}
 function demo(){const notes=[];[60,64,67,72,71,67,64,62,65,69,74,72,69,65,64,60].forEach((pitch,i)=>notes.push({pitch,start:i*.5,end:i*.5+.42,track:0,velocity:100}));[48,53,55,48].forEach((pitch,i)=>notes.push({pitch,start:i*2,end:i*2+1.8,track:1,velocity:80}));load({notes,tracks:[{name:'Melody'},{name:'Left hand'}],duration:8.5},'A little warm-up');}
 async function play(){if(playing){pause();return;}if(!song.notes.length){status('This file has no notes to play.');return;}if(position>=song.duration)position=0;if($('audio').checked){await enableAudio();}if(output&&midi?.sysexEnabled)await setBrightness(output,originalBrightness.get(output.id)??100);origin=now();playing=true;restartSchedule();$('play').textContent='Ⅱ Pause';}
 function sendDiff(next,timestamp){if(output){for(const p of planned)if(!next.has(p))output.send([0x80,p,0],timestamp);for(const p of next)if(!planned.has(p))output.send([0x90,p,127],timestamp);}planned=next;}
-function schedule(){if(!playing)return;const time=current(),until=Math.min(song.duration,time+.12*rate);try{if(scheduledTo<time){sendDiff(sounding(song.notes,time,selected),now());scheduledTo=time;}
+function schedule(){if(!playing)return;if(practice&&!input){pause();status('Keyboard input disconnected. Reconnect it to continue practice.');return;}const time=current(),until=Math.min(song.duration,practice?.next?.time??Infinity,time+.12*rate);if(practice?.arrive(time))showRequired();try{if(scheduledTo<time){sendDiff(sounding(song.notes,time,selected),now());scheduledTo=time;}
  const boundaries=new Set();for(const n of song.notes)if(selected.has(n.track)){if(n.start>scheduledTo&&n.start<=until)boundaries.add(n.start);if(n.end>scheduledTo&&n.end<=until)boundaries.add(n.end);}for(const t of [...boundaries].sort((a,b)=>a-b))sendDiff(sounding(song.notes,t,selected),origin+(t-position)/rate*1000);scheduledTo=until;
- }catch(e){pause();status(`Could not send MIDI: ${e.message}`);}if(time>=song.duration){pause();position=song.duration;}}
+ }catch(e){pause();status(`Could not send MIDI: ${e.message}`);}if(time>=song.duration&&!practice?.waiting){pause();position=song.duration;}}
 setInterval(schedule,25);
-function synth(keys){if(!$('audio').checked||!playing||!piano)keys=new Set();for(const p of voices.keys())if(!keys.has(p)){piano?.stop(`song:${p}`);voices.delete(p);}for(const p of keys)if(!voices.has(p)){piano.start(`song:${p}`,p,90);voices.set(p,true);}}
+function synth(keys){if(!$('audio').checked||!playing||!piano||practice)keys=new Set();for(const p of voices.keys())if(!keys.has(p)){piano?.stop(`song:${p}`);voices.delete(p);}for(const p of keys)if(!voices.has(p)){piano.start(`song:${p}`,p,90);voices.set(p,true);}}
 $('play').onclick=play;
 $('stop').onclick=async()=>{
  pause();position=0;clearLive();
@@ -55,10 +58,11 @@ $('stop').onclick=async()=>{
  finally{main.inert=false;$('stop').focus();}
 };
 $('demo').onclick=demo;
+$('stepMode').onchange=()=>{const resume=playing;pause();if($('stepMode').checked&&!input){status('Connect a keyboard input before starting Wait for my notes.');return;}if(resume)play();};
 $('file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('Please use a MIDI file smaller than 20 MB.');load(parseMidi(await file.arrayBuffer()),file.name.replace(/\.midi?$/i,''));}catch(error){status(error.message);}e.target.value='';};
 function seekTo(time){
  const resume=playing;silence();position=Math.max(0,Math.min(song.duration,time));origin=now();
- playing=resume&&position<song.duration;scheduledTo=position-.000001;
+ playing=resume&&position<song.duration;practice=$('stepMode').checked?new Practice(song.notes,selected,position):null;scheduledTo=position-.000001;
  $('seek').value=position;$('play').textContent=playing?'Ⅱ Pause':'▶ Play';
  updateButtonApi();if(playing)schedule();
 }
@@ -94,6 +98,7 @@ function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixel
  $('time').textContent=`${fmt(time)} / ${fmt(song.duration)}`;if(document.activeElement!==$('seek'))$('seek').value=time;requestAnimationFrame(draw);
 }
 demo();draw();
+
 
 
 
