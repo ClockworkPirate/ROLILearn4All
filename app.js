@@ -1,6 +1,7 @@
 import {parseMidi,sounding} from './midi.js';
 import {Piano,decodeNote} from './piano.js';
-import {resetLights} from './lights.js';
+import {resetLights,readBrightness,setBrightness} from './lights.js';
+const originalBrightness=new Map();
 const $=id=>document.getElementById(id),colors=['#8cedc6','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
 let song,selected=new Set(),playing=false,position=0,origin=0,rate=1,midi=null,output=null,planned=new Set(),scheduledTo=0,audioContext=null,voices=new Map();
 let piano=null,input=null;const held=new Map(),pedal=new Set();
@@ -35,8 +36,8 @@ $('file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if
 $('seek').oninput=()=>{const resume=playing;pause();position=Number($('seek').value);if(resume)play();};
 $('speed').oninput=()=>{const resume=playing;pause();rate=Number($('speed').value)/100;$('speedLabel').textContent=`${Math.round(rate*100)}%`;if(resume)play();};
 function ports(){const previous=output?.id;const available=[...midi.outputs.values()].filter(p=>p.state==='connected');$('output').replaceChildren();$('output').add(new Option(available.length?'Choose your ROLI Piano output':'No MIDI outputs detected',''));$('output').disabled=!available.length;for(const port of available)$('output').add(new Option(port.name||port.id,port.id));if(previous&&available.some(p=>p.id===previous))$('output').value=previous;else if(output){pause();output=null;$('disconnect').disabled=true;}if(!output)$('connection').textContent=available.length?`${available.length} MIDI output(s) found. Select your Piano.`:'MIDI permission granted, but the browser sees no outputs. Check the Piano in Windows Device Manager for a driver error, then reconnect USB and click Refresh MIDI devices.';}
-async function chooseOutput(){pause();output=null;const candidate=midi?.outputs.get($('output').value);if(!candidate)return;try{await candidate.open();output=candidate;$('connection').textContent=`Connected: ${output.name}`;$('disconnect').disabled=false;status('Piano ready. Press Play to light the keys.');}catch(e){status(`Could not open MIDI output: ${e.message}`);}}
-$('connect').onclick=async()=>{if(!navigator.requestMIDIAccess){$('connection').textContent='Web MIDI is unavailable in this browser. Use desktop Chrome at localhost or HTTPS.';status($('connection').textContent);return;}const button=$('connect');button.disabled=true;button.textContent='Checking MIDI devices…';$('connection').textContent='Waiting for browser MIDI permission…';try{midi=await navigator.requestMIDIAccess();ports();inputPorts();midi.onstatechange=()=>{ports();inputPorts();};const roli=[...midi.outputs.values()].find(p=>p.state==='connected'&&/ROLI Piano/i.test(p.name));if(roli){$('output').value=roli.id;await chooseOutput();}else status($('connection').textContent);}catch(e){$('connection').textContent=`MIDI access failed: ${e.message}. Check this site's MIDI permission in Chrome.`;status($('connection').textContent);}finally{button.disabled=false;button.textContent=midi?'Refresh MIDI devices':'Connect ROLI Piano';}};
+async function chooseOutput(){pause();output=null;const candidate=midi?.outputs.get($('output').value);if(!candidate)return;try{await candidate.open();output=candidate;if(midi.sysexEnabled){await chooseInput();if(!originalBrightness.has(candidate.id)){const value=await readBrightness(candidate,input);originalBrightness.set(candidate.id,value>0?value:100);}await setBrightness(candidate,originalBrightness.get(candidate.id));}$('connection').textContent=`Connected: ${output.name}`;$('disconnect').disabled=false;status('Piano ready. Press Play to light the keys.');}catch(e){status(`Could not open MIDI output: ${e.message}`);}}
+$('connect').onclick=async()=>{if(!navigator.requestMIDIAccess){$('connection').textContent='Web MIDI is unavailable in this browser. Use desktop Chrome at localhost or HTTPS.';status($('connection').textContent);return;}const button=$('connect');button.disabled=true;button.textContent='Checking MIDI devices…';$('connection').textContent='Waiting for browser MIDI permission…';try{midi=await navigator.requestMIDIAccess({sysex:true});ports();inputPorts();midi.onstatechange=()=>{ports();inputPorts();};const roli=[...midi.outputs.values()].find(p=>p.state==='connected'&&/ROLI Piano/i.test(p.name));if(roli){$('output').value=roli.id;await chooseOutput();}else status($('connection').textContent);}catch(e){$('connection').textContent=`MIDI access failed: ${e.message}. Check this site's MIDI permission in Chrome.`;status($('connection').textContent);}finally{button.disabled=false;button.textContent=midi?'Refresh MIDI devices':'Connect ROLI Piano';}};
 $('output').onchange=chooseOutput;$('disconnect').onclick=async()=>{
  const button=$('disconnect');button.disabled=true;button.textContent='Clearing lights…';
  const oldOutput=output,oldInput=input;const stateHandler=midi?.onstatechange;
@@ -44,7 +45,7 @@ $('output').onchange=chooseOutput;$('disconnect').onclick=async()=>{
  if(oldInput)oldInput.onmidimessage=null;
  pause();clearLive();output=null;input=null;
  for(const id of ['connect','output','input','play'])$(id).disabled=true;
- try{await resetLights(oldOutput);await oldInput?.close();await oldOutput?.close();$('output').value='';$('input').value='';$('connection').textContent='Disconnected';status('Lighting note releases sent. Connect again to resume.');}
+ try{await resetLights(oldOutput);if(oldOutput&&midi.sysexEnabled)await setBrightness(oldOutput,0);await oldInput?.close();await oldOutput?.close();$('output').value='';$('input').value='';$('connection').textContent='Disconnected';status('Lighting note releases sent. Connect again to resume.');}
  catch(e){output=oldOutput;input=oldInput;if(input)input.onmidimessage=receiveMidi;button.disabled=false;status(`Could not finish clearing lights: ${e.message}. Try Disconnect again.`);}
  finally{button.textContent='Disconnect & clear lights';for(const id of ['connect','output','input','play'])$(id).disabled=false;if(midi)midi.onstatechange=stateHandler;}
 };
@@ -58,6 +59,8 @@ function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixel
  $('time').textContent=`${fmt(time)} / ${fmt(song.duration)}`;if(document.activeElement!==$('seek'))$('seek').value=time;requestAnimationFrame(draw);
 }
 demo();draw();
+
+
 
 
 

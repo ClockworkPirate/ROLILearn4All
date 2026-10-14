@@ -1,6 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {parseMidi,sounding} from './midi.js';
 import {decodeNote} from './piano.js';
-import {resetLights} from './lights.js';
+import {resetLights,configPacket} from './lights.js';
+test('brightness config matches BLOCKS field layout',()=>{const msg=configPacket(36,0);assert.deepEqual(msg.slice(0,6),[240,0,33,16,119,0]);assert.deepEqual(msg.slice(6,-2),[16,64,4,0,0,0,0,0]);assert.equal(msg.at(-1),247);});
 test('disconnect reset cancels queued notes then drains two paced release passes',async()=>{const calls=[];let time=1000;const port={clear:()=>calls.push('clear'),send:(data,at)=>calls.push({data,at})};await resetLights(port,async ms=>{calls.push({wait:ms});time+=ms;},()=>time);assert.equal(calls[0],'clear');assert.equal(calls.filter(c=>c.wait===350).length,2);const notes=calls.filter(c=>c.data?.[0]===0x80);assert.equal(notes.length,256);assert.equal(notes[127].at,1254);assert.equal(notes[128].at,1350);assert.deepEqual(notes[255].data,[0x80,127,0]);});
 test('live MIDI handles MPE channels, velocity-zero release and ignores other events',()=>{assert.deepEqual(decodeNote([0x95,69,80]),{channel:5,pitch:69,velocity:80,on:true});assert.equal(decodeNote([0x95,69,0]).on,false);assert.equal(decodeNote([0x85,69,64]).on,false);assert.equal(decodeNote([0xe5,0,64]),null);assert.equal(decodeNote([0x95]),null);});
 const ascii=s=>[...s].map(c=>c.charCodeAt(0));
