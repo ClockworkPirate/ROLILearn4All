@@ -1,4 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {parseMidi,sounding} from './midi.js';
+import {decodeNote} from './piano.js';
+test('live MIDI handles MPE channels, velocity-zero release and ignores other events',()=>{assert.deepEqual(decodeNote([0x95,69,80]),{channel:5,pitch:69,velocity:80,on:true});assert.equal(decodeNote([0x95,69,0]).on,false);assert.equal(decodeNote([0x85,69,64]).on,false);assert.equal(decodeNote([0xe5,0,64]),null);assert.equal(decodeNote([0x95]),null);});
 const ascii=s=>[...s].map(c=>c.charCodeAt(0));
 function file(track){return new Uint8Array([...ascii('MThd'),0,0,0,6,0,0,0,1,0,96,...ascii('MTrk'),0,0,0,track.length,...track]).buffer;}
 test('tempo changes and running status produce correct durations',()=>{const song=parseMidi(file([0,0x90,60,100,96,60,0,0,255,81,3,15,66,64,0,0x90,64,100,96,0x80,64,0,0,255,47,0]));assert.equal(song.notes.length,2);assert.equal(song.notes[0].end,.5);assert.equal(song.notes[1].start,.5);assert.equal(song.notes[1].end,1.5);});
