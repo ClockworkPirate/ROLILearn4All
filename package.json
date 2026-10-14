@@ -1,1 +1,2 @@
-{"name":"roli-practice","version":"1.0.0","private":true,"type":"module","engines":{"node":"24.x"},"scripts":{"start":"node server.mjs","test":"node --test test.mjs"}}
+{"name":"roli-practice","version":"1.0.0","license":"MIT","private":true,"type":"module","engines":{"node":"24.x"},"scripts":{"start":"node server.mjs","test":"node --test test.mjs"}}
+

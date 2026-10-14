@@ -30,3 +30,8 @@ Open http://localhost:8765. Run `npm test` to check MIDI parsing and lighting me
 ## Deploy
 
 Push to `main` on this GitHub repo to deploy automatically to Heroku. GitHub Actions runs tests on pushes and pull requests.
+
+## License
+
+[MIT](LICENSE). Includes code adapted from ROLI-for-Live and ROLI BLOCKS protocol helpers; see [third-party notices](THIRD_PARTY_NOTICES.md).
+
