@@ -1,19 +1,32 @@
-# ROLI Practice
+# ROLI Learn 4 All
 
-A browser MIDI player with a falling-note preview and ROLI Piano key lighting. Files are read locally. No Ableton or build step is required.
+Learn MIDI songs with falling notes, piano audio, and lights on your ROLI Piano. MIDI files stay on your computer. No Ableton required.
 
-From this directory run `npm start`, then open http://localhost:8765 in desktop Chrome. Connect the Piano over USB, click **Connect ROLI Piano**, grant MIDI permission, load a `.mid` file and press Play. The ROLI driver may still be required. Close Ableton or disable its ROLI control surface while using this player to prevent competing lighting commands.
+**[Open the player](https://rolilearn4all-a42b865ad096.herokuapp.com/)**
 
-Track checkboxes select both the visual notes and hardware lights. Piano audio is enabled by default. After connecting, select the keyboard input to hear live notes with velocity and sustain support. Playback speed, seek, pause and stop clear queued MIDI and active lights. Playback pauses when the tab is hidden. The demo works without hardware.
+![ROLI Learn player with falling notes, track controls, and piano keyboard](docs/ui.png)
 
-The player uses the exact channel 1 note-on (`90 pitch 7F`) / note-off (`80 pitch 00`) lighting method from `src/ROLI_for_Live/playing_notes.py`. It leaves the Piano's saved lighting configuration alone, so no SysEx permission is needed. Hardware behaviour in the browser still needs verification on a connected Piano. Lights follow MIDI note durations; sustain pedal events are currently ignored. The display includes all pitches in selected tracks; only notes in the Piano's current octave range can light physical keys. Track colours are used in the preview; hardware note feedback is white.
+## Get started
 
-Supported files: Standard MIDI formats 0 and 1, PPQ timing, tempo changes and running status. Format 2 and SMPTE timing report an error. Embedded SysEx and other file commands are never forwarded to hardware. For online hosting, serve `index.html`, `style.css`, `app.js`, `midi.js`, `piano.js`, and `lights.js` over HTTPS, or run the included Node server.
+1. Open the player in desktop Chrome and connect your Piano by USB.
+2. Click **Connect ROLI Piano** and allow MIDI/SysEx access.
+3. Select your MIDI output and keyboard input.
+4. Load a `.mid` file and press **Play**, or try the demo.
 
-Run `npm test` for timing, parsing and overlapping-note checks.
+Choose tracks, slow down playback, and adjust how far ahead you see notes. Piano audio is on by default and also responds to your keyboard, including velocity and sustain. **Disconnect & clear lights** sends note releases and turns off key lighting; reconnecting restores brightness.
 
-## Production deployment
+You may need ROLI's Windows driver. Close Ableton's ROLI control surface while using the player to avoid competing lighting commands. Only notes within your Piano's current octave range can light its keys.
 
-Source is maintained at https://github.com/ClockworkPirate/ROLILearn4All. Push changes to `main` to trigger the configured Heroku GitHub integration for `rolilearn4all`. GitHub Actions runs the test suite on pushes and pull requests. Production is https://rolilearn4all-a42b865ad096.herokuapp.com/.
+## Run locally
 
-Use `git push origin main` for releases. Heroku builds directly from GitHub; there is no need to push to its Git remote. The server uses Heroku's assigned `PORT` and the `web` process declared in `Procfile`.
+Requires Node.js.
+
+```sh
+npm start
+```
+
+Open http://localhost:8765. Run `npm test` to check MIDI parsing and lighting messages.
+
+## Deploy
+
+Push to `main` on this GitHub repo to deploy automatically to Heroku. GitHub Actions runs tests on pushes and pull requests.
