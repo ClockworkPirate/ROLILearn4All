@@ -1,5 +1,6 @@
 import {parseMidi,sounding} from './midi.js';
 import {Piano,decodeNote} from './piano.js';
+import {resetLights} from './lights.js';
 const $=id=>document.getElementById(id),colors=['#8cedc6','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
 let song,selected=new Set(),playing=false,position=0,origin=0,rate=1,midi=null,output=null,planned=new Set(),scheduledTo=0,audioContext=null,voices=new Map();
 let piano=null,input=null;const held=new Map(),pedal=new Set();
@@ -36,7 +37,17 @@ $('speed').oninput=()=>{const resume=playing;pause();rate=Number($('speed').valu
 function ports(){const previous=output?.id;const available=[...midi.outputs.values()].filter(p=>p.state==='connected');$('output').replaceChildren();$('output').add(new Option(available.length?'Choose your ROLI Piano output':'No MIDI outputs detected',''));$('output').disabled=!available.length;for(const port of available)$('output').add(new Option(port.name||port.id,port.id));if(previous&&available.some(p=>p.id===previous))$('output').value=previous;else if(output){pause();output=null;$('disconnect').disabled=true;}if(!output)$('connection').textContent=available.length?`${available.length} MIDI output(s) found. Select your Piano.`:'MIDI permission granted, but the browser sees no outputs. Check the Piano in Windows Device Manager for a driver error, then reconnect USB and click Refresh MIDI devices.';}
 async function chooseOutput(){pause();output=null;const candidate=midi?.outputs.get($('output').value);if(!candidate)return;try{await candidate.open();output=candidate;$('connection').textContent=`Connected: ${output.name}`;$('disconnect').disabled=false;status('Piano ready. Press Play to light the keys.');}catch(e){status(`Could not open MIDI output: ${e.message}`);}}
 $('connect').onclick=async()=>{if(!navigator.requestMIDIAccess){$('connection').textContent='Web MIDI is unavailable in this browser. Use desktop Chrome at localhost or HTTPS.';status($('connection').textContent);return;}const button=$('connect');button.disabled=true;button.textContent='Checking MIDI devices…';$('connection').textContent='Waiting for browser MIDI permission…';try{midi=await navigator.requestMIDIAccess();ports();inputPorts();midi.onstatechange=()=>{ports();inputPorts();};const roli=[...midi.outputs.values()].find(p=>p.state==='connected'&&/ROLI Piano/i.test(p.name));if(roli){$('output').value=roli.id;await chooseOutput();}else status($('connection').textContent);}catch(e){$('connection').textContent=`MIDI access failed: ${e.message}. Check this site's MIDI permission in Chrome.`;status($('connection').textContent);}finally{button.disabled=false;button.textContent=midi?'Refresh MIDI devices':'Connect ROLI Piano';}};
-$('output').onchange=chooseOutput;$('disconnect').onclick=async()=>{pause();clearLive();if(input){input.onmidimessage=null;await input.close();input=null;}const old=output;output=null;if(old)await old.close();$('output').value='';$('connection').textContent='Disconnected';$('disconnect').disabled=true;};
+$('output').onchange=chooseOutput;$('disconnect').onclick=async()=>{
+ const button=$('disconnect');button.disabled=true;button.textContent='Clearing lights…';
+ const oldOutput=output,oldInput=input;const stateHandler=midi?.onstatechange;
+ if(midi)midi.onstatechange=null; // close events must not auto-open the input again
+ if(oldInput)oldInput.onmidimessage=null;
+ pause();clearLive();output=null;input=null;
+ for(const id of ['connect','output','input','play'])$(id).disabled=true;
+ try{await resetLights(oldOutput);await oldInput?.close();await oldOutput?.close();$('output').value='';$('input').value='';$('connection').textContent='Disconnected';status('Lighting note releases sent. Connect again to resume.');}
+ catch(e){output=oldOutput;input=oldInput;if(input)input.onmidimessage=receiveMidi;button.disabled=false;status(`Could not finish clearing lights: ${e.message}. Try Disconnect again.`);}
+ finally{button.textContent='Disconnect & clear lights';for(const id of ['connect','output','input','play'])$(id).disabled=false;if(midi)midi.onstatechange=stateHandler;}
+};
 document.addEventListener('visibilitychange',()=>{if(document.hidden)clearLive();if(document.hidden&&playing){pause();status('Paused while the tab is hidden. Press Play to continue.');}});window.addEventListener('pagehide',()=>{pause();clearLive();});
 const canvas=$('canvas'),ctx=canvas.getContext('2d');
 function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;if(canvas.width!==Math.round(rect.width*dpr)||canvas.height!==Math.round(rect.height*dpr)){canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);}ctx.setTransform(dpr,0,0,dpr,0,0);const w=rect.width,h=rect.height,keyHeight=78,line=h-keyHeight,time=current(),ahead=Number($('ahead').value),keys=sounding(song.notes,time,selected);synth(keys);for(const n of held.values())keys.add(n.pitch);ctx.clearRect(0,0,w,h);
