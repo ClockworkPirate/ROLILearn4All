@@ -4,6 +4,8 @@ const riskDialog=document.getElementById('riskNotice');
 let noticeAccepted=false;
 riskDialog.close();riskDialog.showModal();
 riskDialog.addEventListener('cancel',event=>event.preventDefault());
+riskDialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();}});
+riskDialog.addEventListener('close',()=>{if(!noticeAccepted&&!riskDialog.open)riskDialog.showModal();});
 document.getElementById('riskAccept').onchange=event=>{document.getElementById('riskContinue').disabled=!event.target.checked;};
 document.getElementById('riskForm').onsubmit=event=>{event.preventDefault();if(!document.getElementById('riskAccept').checked)return;noticeAccepted=true;document.querySelector('main').inert=false;riskDialog.close();document.getElementById('connect').focus();};
 document.getElementById('riskLeave').onclick=()=>location.replace('about:blank');
