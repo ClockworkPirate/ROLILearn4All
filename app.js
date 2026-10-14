@@ -34,7 +34,7 @@ const now=()=>performance.now();
 const current=()=>playing?Math.min(song.duration,position+(now()-origin)/1000*rate):position;
 const status=text=>{$('status').textContent=text;};
 const fmt=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
-function silence(){if(output){try{output.clear();for(let p=0;p<128;p++)output.send([0x80,p,0]);}catch(e){status(`MIDI connection lost: ${e.message}`);}}planned.clear();piano?.clear('song:');voices.clear();}
+function silence(){if(output){try{if(typeof output.clear==='function')output.clear();for(let p=0;p<128;p++)output.send([0x80,p,0]);}catch(e){status(`MIDI connection lost: ${e.message}`);}}planned.clear();piano?.clear('song:');voices.clear();}
 function pause(){position=current();playing=false;silence();$('play').textContent='▶ Play';}
 function restartSchedule(){silence();scheduledTo=position-0.000001;}
 function load(next,title){pause();song=next;position=0;selected=new Set(song.tracks.map((_,i)=>i));$('title').textContent=title;$('seek').max=song.duration;$('tracks').replaceChildren();song.tracks.forEach((track,i)=>{const label=document.createElement('label');label.className='check';const box=document.createElement('input');box.type='checkbox';box.checked=true;box.addEventListener('change',()=>{const resume=playing;pause();box.checked?selected.add(i):selected.delete(i);if(resume)play();});label.append(box,document.createTextNode(track.name||`Track ${i+1}`));label.style.color=colors[i%colors.length];$('tracks').append(label);});status(`${song.notes.length} notes · ${song.tracks.length} tracks · Files stay on your computer.`);}

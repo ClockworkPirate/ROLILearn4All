@@ -17,7 +17,8 @@ export async function readBrightness(port,input){
 export async function setBrightness(port,value){port.send(configPacket(36,value));await new Promise(resolve=>setTimeout(resolve,150));}
 export async function resetLights(port,wait=ms=>new Promise(resolve=>setTimeout(resolve,ms)),clock=()=>performance.now()){
  if(!port)return;
- port.clear();
+ if(typeof port.clear==='function')port.clear();
+ else await wait(200); // playback queues at most 120 ms ahead; let it drain first
  for(let pass=0;pass<2;pass++){
   const start=clock();
   port.send([0xb0,64,0],start); // release sustain on the lighting channel
