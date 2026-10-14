@@ -1,11 +1,18 @@
 import {parseMidi,sounding} from './midi.js';
 import {Piano,decodeNote} from './piano.js';
+const riskDialog=document.getElementById('riskNotice');
+let noticeAccepted=false;
+riskDialog.close();riskDialog.showModal();
+riskDialog.addEventListener('cancel',event=>event.preventDefault());
+document.getElementById('riskAccept').onchange=event=>{document.getElementById('riskContinue').disabled=!event.target.checked;};
+document.getElementById('riskForm').onsubmit=event=>{event.preventDefault();if(!document.getElementById('riskAccept').checked)return;noticeAccepted=true;document.querySelector('main').inert=false;riskDialog.close();document.getElementById('connect').focus();};
+document.getElementById('riskLeave').onclick=()=>location.replace('about:blank');
 import {resetLights,readBrightness,setBrightness} from './lights.js';
 const originalBrightness=new Map();
 const $=id=>document.getElementById(id),colors=['#8cedc6','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
 let song,selected=new Set(),playing=false,position=0,origin=0,rate=1,midi=null,output=null,planned=new Set(),scheduledTo=0,audioContext=null,voices=new Map();
 let piano=null,input=null;const held=new Map(),pedal=new Set();
-async function enableAudio(){if(!$('audio').checked)return;audioContext??=new AudioContext();piano??=new Piano(audioContext);await audioContext.resume();}
+async function enableAudio(){if(!noticeAccepted||!$('audio').checked)return;audioContext??=new AudioContext();piano??=new Piano(audioContext);await audioContext.resume();}
 document.addEventListener('pointerdown',()=>{enableAudio().catch(e=>status(`Audio unavailable: ${e.message}`));});
 function clearLive(){held.clear();pedal.clear();piano?.clear('live:');}
 function receiveMidi(event){const data=event.data,ch=data[0]&15;
