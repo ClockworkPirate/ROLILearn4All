@@ -1,4 +1,5 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {parseMidi,sounding} from './midi.js';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseMidi,sounding,upcoming} from './midi.js';
+test('anticipation respects timing, selected tracks, and sounding-key priority',()=>{const notes=[{pitch:60,start:1,track:0},{pitch:62,start:1.6,track:0},{pitch:64,start:1.2,track:1}];assert.deepEqual([...upcoming(notes,.5,new Set([0]))],[60]);assert.equal(upcoming(notes,1,new Set([0])).size,0);assert.equal(upcoming(notes,.7,new Set([0]),.5,new Set([60])).size,0);});
 import {decodeNote} from './piano.js';
 import {resetLights,configPacket} from './lights.js';
 test('brightness config matches BLOCKS field layout',()=>{const msg=configPacket(36,0);assert.deepEqual(msg.slice(0,6),[240,0,33,16,119,0]);assert.deepEqual(msg.slice(6,-2),[16,64,4,0,0,0,0,0]);assert.equal(msg.at(-1),247);});

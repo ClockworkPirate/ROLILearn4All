@@ -1,4 +1,4 @@
-import {parseMidi,sounding} from './midi.js';
+import {parseMidi,sounding,upcoming} from './midi.js';
 import {Piano,decodeNote} from './piano.js';
 const riskDialog=document.getElementById('riskNotice');
 let noticeAccepted=false;
@@ -11,7 +11,7 @@ document.getElementById('riskForm').onsubmit=event=>{event.preventDefault();if(!
 document.getElementById('riskLeave').onclick=()=>location.replace('about:blank');
 import {resetLights,readBrightness,setBrightness} from './lights.js';
 const originalBrightness=new Map();
-const $=id=>document.getElementById(id),colors=['#8cedc6','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
+const $=id=>document.getElementById(id),colors=['#ffcf87','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
 let song,selected=new Set(),playing=false,position=0,origin=0,rate=1,midi=null,output=null,planned=new Set(),scheduledTo=0,audioContext=null,voices=new Map();
 let piano=null,input=null;const held=new Map(),pedal=new Set();
 async function enableAudio(){if(!noticeAccepted||!$('audio').checked)return;audioContext??=new AudioContext();piano??=new Piano(audioContext);await audioContext.resume();}
@@ -60,14 +60,15 @@ $('output').onchange=chooseOutput;$('disconnect').onclick=async()=>{
 };
 document.addEventListener('visibilitychange',()=>{if(document.hidden)clearLive();if(document.hidden&&playing){pause();status('Paused while the tab is hidden. Press Play to continue.');}});window.addEventListener('pagehide',()=>{pause();clearLive();});
 const canvas=$('canvas'),ctx=canvas.getContext('2d');
-function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;if(canvas.width!==Math.round(rect.width*dpr)||canvas.height!==Math.round(rect.height*dpr)){canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);}ctx.setTransform(dpr,0,0,dpr,0,0);const w=rect.width,h=rect.height,keyHeight=78,line=h-keyHeight,time=current(),ahead=Number($('ahead').value),keys=sounding(song.notes,time,selected);synth(keys);for(const n of held.values())keys.add(n.pitch);ctx.clearRect(0,0,w,h);
+function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;if(canvas.width!==Math.round(rect.width*dpr)||canvas.height!==Math.round(rect.height*dpr)){canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);}ctx.setTransform(dpr,0,0,dpr,0,0);const w=rect.width,h=rect.height,keyHeight=78,line=h-keyHeight,time=current(),ahead=Number($('ahead').value),keys=sounding(song.notes,time,selected);synth(keys);for(const n of held.values())keys.add(n.pitch);const hints=playing&&$('anticipate').checked?upcoming(song.notes,time,selected,.5,keys):new Set();ctx.clearRect(0,0,w,h);
  let min=48,max=83;for(const n of song.notes)if(selected.has(n.track)){min=Math.min(min,n.pitch);max=Math.max(max,n.pitch);}min=Math.max(0,min);max=Math.min(127,max);const black=p=>[1,3,6,8,10].includes(p%12);while(black(min))min--;while(black(max))max++;const whites=[];for(let p=min;p<=max;p++)if(!black(p))whites.push(p);const unit=w/whites.length,geometry=new Map();whites.forEach((p,i)=>geometry.set(p,{x:i*unit,width:unit}));for(let p=min;p<=max;p++)if(black(p)){let prev=p-1;geometry.set(p,{x:geometry.get(prev).x+unit*.68,width:unit*.64});}
  for(const p of whites){const g=geometry.get(p);ctx.fillStyle=p%12===0?'#1b292d':'#141f25';ctx.fillRect(g.x,0,g.width,line);ctx.strokeStyle='#253237';ctx.strokeRect(g.x,0,g.width,line);}for(let s=Math.ceil(time);s<time+ahead;s++){const y=line-(s-time)/ahead*line;ctx.strokeStyle='#2a393d';ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
  for(const n of song.notes){if(!selected.has(n.track)||n.end<time||n.start>time+ahead)continue;const g=geometry.get(n.pitch);if(!g)continue;const top=Math.max(0,line-(n.end-time)/ahead*line),bottom=Math.min(line,line-(n.start-time)/ahead*line);if(bottom<=top)continue;ctx.fillStyle=colors[n.track%colors.length];ctx.globalAlpha=n.start<=time?1:.8;ctx.beginPath();ctx.roundRect(g.x+2,top,Math.max(1,g.width-4),Math.max(2,bottom-top),4);ctx.fill();ctx.globalAlpha=1;}
- ctx.fillStyle='#9aeac8';ctx.fillRect(0,line-2,w,2);for(const p of whites){const g=geometry.get(p);ctx.fillStyle=keys.has(p)?'#9aeac8':'#dfe6e0';ctx.fillRect(g.x+1,line,g.width-2,keyHeight);if(p%12===0){ctx.fillStyle='#4b6558';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(`C${Math.floor(p/12)-1}`,g.x+g.width/2,h-10);}}for(let p=min;p<=max;p++)if(black(p)){const g=geometry.get(p);ctx.fillStyle=keys.has(p)?'#66cda3':'#111b20';ctx.fillRect(g.x,line,g.width,keyHeight*.62);}
+ ctx.fillStyle='#8dbdff';ctx.fillRect(0,line-2,w,2);for(const p of whites){const g=geometry.get(p);ctx.fillStyle=keys.has(p)?'#ffffff':hints.has(p)?'#007a00':'#dfe6e0';ctx.fillRect(g.x+1,line,g.width-2,keyHeight);if(p%12===0){ctx.fillStyle='#4b6558';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(`C${Math.floor(p/12)-1}`,g.x+g.width/2,h-10);}}for(let p=min;p<=max;p++)if(black(p)){const g=geometry.get(p);ctx.fillStyle=keys.has(p)?'#ffffff':hints.has(p)?'#007a00':'#111b20';ctx.fillRect(g.x,line,g.width,keyHeight*.62);}
  $('time').textContent=`${fmt(time)} / ${fmt(song.duration)}`;if(document.activeElement!==$('seek'))$('seek').value=time;requestAnimationFrame(draw);
 }
 demo();draw();
+
 
 
 
