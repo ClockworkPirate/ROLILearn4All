@@ -50,7 +50,14 @@ $('stop').onclick=async()=>{
 };
 $('demo').onclick=demo;
 $('file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('Please use a MIDI file smaller than 20 MB.');load(parseMidi(await file.arrayBuffer()),file.name.replace(/\.midi?$/i,''));}catch(error){status(error.message);}e.target.value='';};
-$('seek').oninput=()=>{const resume=playing;pause();position=Number($('seek').value);if(resume)play();};
+function seekTo(time){const resume=playing;pause();position=Math.max(0,Math.min(song.duration,time));$('seek').value=position;if(resume)play();}
+$('seek').oninput=()=>seekTo(Number($('seek').value));
+document.addEventListener('keydown',event=>{
+ if(!noticeAccepted||document.querySelector('main').inert||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey)return;
+ if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;
+ if(event.target instanceof Element&&event.target.closest('input,select,textarea,[contenteditable="true"],[role="slider"]'))return;
+ event.preventDefault();seekTo(current()+(event.key==='ArrowRight'?1:-1)*(event.shiftKey?1:5));
+});
 $('speed').oninput=()=>{const resume=playing;pause();rate=Number($('speed').value)/100;$('speedLabel').textContent=`${Math.round(rate*100)}%`;if(resume)play();};
 function ports(){const previous=output?.id;const available=[...midi.outputs.values()].filter(p=>p.state==='connected');$('output').replaceChildren();$('output').add(new Option(available.length?'Choose your ROLI Piano output':'No MIDI outputs detected',''));$('output').disabled=!available.length;for(const port of available)$('output').add(new Option(port.name||port.id,port.id));if(previous&&available.some(p=>p.id===previous))$('output').value=previous;else if(output){pause();output=null;$('disconnect').disabled=true;}if(!output)$('connection').textContent=available.length?`${available.length} MIDI output(s) found. Select your Piano.`:'MIDI permission granted, but the browser sees no outputs. Check the Piano in Windows Device Manager for a driver error, then reconnect USB and click Refresh MIDI devices.';}
 async function chooseOutput(){pause();output=null;const candidate=midi?.outputs.get($('output').value);if(!candidate)return;try{await candidate.open();output=candidate;if(midi.sysexEnabled){await chooseInput();if(!originalBrightness.has(candidate.id)){const value=await readBrightness(candidate,input);originalBrightness.set(candidate.id,value>0?value:100);}await setBrightness(candidate,originalBrightness.get(candidate.id));}$('connection').textContent=`Connected: ${output.name}`;$('disconnect').disabled=false;status('Piano ready. Press Play to light the keys.');}catch(e){status(`Could not open MIDI output: ${e.message}`);}}
