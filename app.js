@@ -17,7 +17,7 @@ const originalBrightness=new Map();
 const $=id=>document.getElementById(id),colors=['#ffcf87','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
 let song,selected=new Set(),playing=false,position=0,origin=0,rate=1,midi=null,output=null,planned=new Set(),scheduledTo=0,audioContext=null,voices=new Map();
 let piano=null,input=null;const held=new Map(),pedal=new Set();
-async function enableAudio(){if(!noticeAccepted||!$('audio').checked)return;audioContext??=new AudioContext();piano??=new Piano(audioContext);await audioContext.resume();}
+async function enableAudio(){if(!noticeAccepted||!$('audio').checked)return;audioContext??=new AudioContext();piano??=new Piano(audioContext);await audioContext.resume();const name=$('instrument').value;if(piano.instrument!==name){$('instrumentStatus').textContent='Loading instrument samples…';await piano.load(name);$('instrumentStatus').textContent=`${$('instrument').selectedOptions[0].text} ready`;}}
 document.addEventListener('pointerdown',()=>{enableAudio().catch(e=>status(`Audio unavailable: ${e.message}`));});
 function clearLive(){held.clear();pedal.clear();piano?.clear('live:');}
 function receiveMidi(event){const data=event.data,ch=data[0]&15;
@@ -28,6 +28,7 @@ function receiveMidi(event){const data=event.data,ch=data[0]&15;
 function inputPorts(){const previous=input?.id;const available=[...midi.inputs.values()].filter(p=>p.state==='connected');$('input').replaceChildren();$('input').add(new Option(available.length?'Choose keyboard input':'No MIDI inputs detected',''));for(const port of available)$('input').add(new Option(port.name||port.id,port.id));$('input').disabled=!available.length;if(previous&&available.some(p=>p.id===previous))$('input').value=previous;else{if(input)input.onmidimessage=null;input=null;clearLive();const roli=available.find(p=>/ROLI|LUMI/i.test(p.name));if(roli){$('input').value=roli.id;chooseInput();}}}
 async function chooseInput(){clearLive();if(input)input.onmidimessage=null;input=null;const candidate=midi?.inputs.get($('input').value);if(!candidate)return;try{await candidate.open();input=candidate;input.onmidimessage=receiveMidi;status(`Keyboard audio ready: ${input.name}. Play a key to hear it.`);}catch(e){status(`Could not open MIDI input: ${e.message}`);}}
 $('input').onchange=chooseInput;$('audio').onchange=()=>{if(!$('audio').checked){piano?.clear();voices.clear();}else enableAudio().catch(e=>status(e.message));};
+$('instrument').onchange=async()=>{const resume=playing;pause();clearLive();$('instrument').disabled=true;try{await enableAudio();if(resume)await play();}catch(e){$('instrumentStatus').textContent='Could not load this instrument. Select it again to retry.';status(e.message);}finally{$('instrument').disabled=false;}};
 let buttonApiPort=null;
 function updateButtonApi(){if(!$('buttonSeek').checked||!output||!input||!midi?.sysexEnabled){buttonApiPort=null;return;}try{output.send(apiCommand(0));buttonApiPort=output;output.send(apiCommand(3));}catch(e){buttonApiPort=null;status(`Keyboard button connection failed: ${e.message}`);}}
 $('buttonSeek').onchange=()=>{updateButtonApi();if($('buttonSeek').checked)status(input&&output?'Piano left / right arrows seek 5 seconds. Their native program-change function may also occur.':'Connect the Piano input and output to use its buttons.');};

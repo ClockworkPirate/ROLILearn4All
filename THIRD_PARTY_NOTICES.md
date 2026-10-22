@@ -25,3 +25,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ```
 
+
+## Instrument samples
+
+Grand Piano, Electric Piano and Organ use FluidR3_GM samples, packaged by [gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) from FluidR3_GM.sf2. Fluid SoundFont authors: Frank Wen, Josh Green and S. Christian Collins. Licensed under [Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/). The samples are extracted from the published MP3 soundfont bundles into JSON; playback adds envelopes, pitch transposition, and organ looping. The samples are not covered by this project's MIT license.
