@@ -15,6 +15,9 @@ document.getElementById('riskLeave').onclick=()=>location.replace('about:blank')
 import {resetLights,readBrightness,setBrightness} from './lights.js';
 const originalBrightness=new Map();
 const $=id=>document.getElementById(id),colors=['#ffcf87','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
+const playerPanel=document.querySelector('.player');
+$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement===playerPanel)await document.exitFullscreen();else if(playerPanel.requestFullscreen)await playerPanel.requestFullscreen();else status('Fullscreen is unavailable in this browser.');}catch(e){status(`Could not enter fullscreen: ${e.message}`);}};
+document.addEventListener('fullscreenchange',()=>{const active=document.fullscreenElement===playerPanel;$('fullscreen').textContent=active?'Exit fullscreen':'⛶ Fullscreen';$('fullscreen').setAttribute('aria-pressed',String(active));});
 let song,selected=new Set(),playing=false,position=0,origin=0,rate=1,midi=null,output=null,planned=new Set(),scheduledTo=0,audioContext=null,voices=new Map();
 let piano=null,input=null;const held=new Map(),pedal=new Set();
 async function enableAudio(){if(!noticeAccepted||!$('audio').checked)return;audioContext??=new AudioContext();piano??=new Piano(audioContext);await audioContext.resume();const name=$('instrument').value;if(piano.instrument!==name){$('instrumentStatus').textContent='Loading instrument samples…';await piano.load(name);$('instrumentStatus').textContent=`${$('instrument').selectedOptions[0].text} ready`;}}
