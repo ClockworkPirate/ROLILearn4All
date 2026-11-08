@@ -16,6 +16,10 @@ import {resetLights,readBrightness,setBrightness} from './lights.js';
 const originalBrightness=new Map();
 const $=id=>document.getElementById(id),colors=['#ffcf87','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
 const playerPanel=document.querySelector('.player');
+const settingsDialog=$('settingsDialog');
+$('openSettings').onclick=()=>{if(noticeAccepted)settingsDialog.showModal();};
+for(const id of ['closeSettings','doneSettings'])$(id).onclick=()=>settingsDialog.close();
+settingsDialog.addEventListener('click',event=>{if(event.target!==settingsDialog)return;const r=settingsDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)settingsDialog.close();});
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement===playerPanel)await document.exitFullscreen();else if(playerPanel.requestFullscreen)await playerPanel.requestFullscreen();else status('Fullscreen is unavailable in this browser.');}catch(e){status(`Could not enter fullscreen: ${e.message}`);}};
 document.addEventListener('fullscreenchange',()=>{const active=document.fullscreenElement===playerPanel;$('fullscreen').textContent=active?'Exit fullscreen':'⛶ Fullscreen';$('fullscreen').setAttribute('aria-pressed',String(active));});
 let song,selected=new Set(),playing=false,position=0,origin=0,rate=1,midi=null,output=null,planned=new Set(),scheduledTo=0,audioContext=null,voices=new Map();
@@ -72,7 +76,7 @@ function seekTo(time){
 }
 $('seek').oninput=()=>seekTo(Number($('seek').value));
 document.addEventListener('keydown',event=>{
- if(!noticeAccepted||document.querySelector('main').inert||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey)return;
+ if(!noticeAccepted||settingsDialog.open||document.querySelector('main').inert||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey)return;
  if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;
  if(event.target instanceof Element&&event.target.closest('input,select,textarea,[contenteditable="true"],[role="slider"]'))return;
  event.preventDefault();seekTo(current()+(event.key==='ArrowRight'?1:-1)*(event.shiftKey?1:5));
@@ -102,6 +106,7 @@ function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixel
  $('time').textContent=`${fmt(time)} / ${fmt(song.duration)}`;if(document.activeElement!==$('seek'))$('seek').value=time;requestAnimationFrame(draw);
 }
 demo();draw();
+
 
 
 
