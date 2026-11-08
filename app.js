@@ -16,7 +16,20 @@ import {resetLights,readBrightness,setBrightness} from './lights.js';
 const originalBrightness=new Map();
 const $=id=>document.getElementById(id),colors=['#ffcf87','#8dbdff','#d6acff','#ffd18b','#ff9dab'];
 const playerPanel=document.querySelector('.player');
+$('loadMidi').onclick=()=>$('file').click();
 const settingsDialog=$('settingsDialog');
+const instrumentDialog=$('instrumentDialog');
+$('openInstrument').onclick=()=>{if(noticeAccepted)instrumentDialog.showModal();};
+for(const id of ['closeInstrument','doneInstrument'])$(id).onclick=()=>instrumentDialog.close();
+instrumentDialog.addEventListener('click',event=>{if(event.target!==instrumentDialog)return;const r=instrumentDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)instrumentDialog.close();});
+function updateInstrumentButton(){$('instrumentName').textContent=$('instrument').selectedOptions[0].text;$('instrumentIcon').textContent={acoustic_grand_piano:'🎹',electric_piano_1:'🎛️',drawbar_organ:'🎼',music_box:'🎁',xylophone:'🥁'}[$('instrument').value];for(const card of document.querySelectorAll('[data-instrument]'))card.setAttribute('aria-pressed',String(card.dataset.instrument===$('instrument').value));}
+for(const card of document.querySelectorAll('[data-instrument]'))card.onclick=async()=>{
+ if($('instrument').disabled)return;
+ $('instrument').value=card.dataset.instrument;
+ instrumentDialog.close();
+ const cards=[...document.querySelectorAll('[data-instrument]')];cards.forEach(button=>button.disabled=true);
+ try{await $('instrument').onchange();}finally{cards.forEach(button=>button.disabled=false);}
+};
 $('openSettings').onclick=()=>{if(noticeAccepted)settingsDialog.showModal();};
 for(const id of ['closeSettings','doneSettings'])$(id).onclick=()=>settingsDialog.close();
 settingsDialog.addEventListener('click',event=>{if(event.target!==settingsDialog)return;const r=settingsDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)settingsDialog.close();});
@@ -35,7 +48,7 @@ function receiveMidi(event){const data=event.data,ch=data[0]&15;
 function inputPorts(){const previous=input?.id;const available=[...midi.inputs.values()].filter(p=>p.state==='connected');$('input').replaceChildren();$('input').add(new Option(available.length?'Choose keyboard input':'No MIDI inputs detected',''));for(const port of available)$('input').add(new Option(port.name||port.id,port.id));$('input').disabled=!available.length;if(previous&&available.some(p=>p.id===previous))$('input').value=previous;else{if(input)input.onmidimessage=null;input=null;clearLive();const roli=available.find(p=>/ROLI|LUMI/i.test(p.name));if(roli){$('input').value=roli.id;chooseInput();}}}
 async function chooseInput(){clearLive();if(input)input.onmidimessage=null;input=null;const candidate=midi?.inputs.get($('input').value);if(!candidate)return;try{await candidate.open();input=candidate;input.onmidimessage=receiveMidi;status(`Keyboard audio ready: ${input.name}. Play a key to hear it.`);}catch(e){status(`Could not open MIDI input: ${e.message}`);}}
 $('input').onchange=chooseInput;$('audio').onchange=()=>{if(!$('audio').checked){piano?.clear();voices.clear();}else enableAudio().catch(e=>status(e.message));};
-$('instrument').onchange=async()=>{const resume=playing;pause();clearLive();$('instrument').disabled=true;try{await enableAudio();if(resume)await play();}catch(e){$('instrumentStatus').textContent='Could not load this instrument. Select it again to retry.';status(e.message);}finally{$('instrument').disabled=false;}};
+$('instrument').onchange=async()=>{updateInstrumentButton();const resume=playing;pause();clearLive();$('instrument').disabled=true;try{await enableAudio();if(resume)await play();}catch(e){$('instrumentStatus').textContent='Could not load this instrument. Select it again to retry.';status(e.message);}finally{$('instrument').disabled=false;}};
 let buttonApiPort=null;
 function updateButtonApi(){if(!$('buttonSeek').checked||!output||!input||!midi?.sysexEnabled){buttonApiPort=null;return;}try{output.send(apiCommand(0));buttonApiPort=output;output.send(apiCommand(3));}catch(e){buttonApiPort=null;status(`Keyboard button connection failed: ${e.message}`);}}
 $('buttonSeek').onchange=()=>{updateButtonApi();if($('buttonSeek').checked)status(input&&output?'Piano left / right arrows seek 5 seconds. Their native program-change function may also occur.':'Connect the Piano input and output to use its buttons.');};
@@ -65,7 +78,6 @@ $('stop').onclick=async()=>{
  catch(e){status(`Stopped, but could not clear all lights: ${e.message}`);}
  finally{main.inert=false;$('stop').focus();}
 };
-$('demo').onclick=demo;
 $('stepMode').onchange=()=>{const resume=playing;pause();if($('stepMode').checked&&!input){status('Connect a keyboard input before starting Wait for my notes.');return;}if(resume)play();};
 $('file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('Please use a MIDI file smaller than 20 MB.');load(parseMidi(await file.arrayBuffer()),file.name.replace(/\.midi?$/i,''));}catch(error){status(error.message);}e.target.value='';};
 function seekTo(time){
@@ -76,7 +88,7 @@ function seekTo(time){
 }
 $('seek').oninput=()=>seekTo(Number($('seek').value));
 document.addEventListener('keydown',event=>{
- if(!noticeAccepted||settingsDialog.open||document.querySelector('main').inert||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey)return;
+ if(!noticeAccepted||settingsDialog.open||instrumentDialog.open||document.querySelector('main').inert||event.defaultPrevented||event.ctrlKey||event.altKey||event.metaKey)return;
  if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;
  if(event.target instanceof Element&&event.target.closest('input,select,textarea,[contenteditable="true"],[role="slider"]'))return;
  event.preventDefault();seekTo(current()+(event.key==='ArrowRight'?1:-1)*(event.shiftKey?1:5));
@@ -106,6 +118,8 @@ function draw(){const rect=canvas.getBoundingClientRect(),dpr=window.devicePixel
  $('time').textContent=`${fmt(time)} / ${fmt(song.duration)}`;if(document.activeElement!==$('seek'))$('seek').value=time;requestAnimationFrame(draw);
 }
 demo();draw();
+
+
 
 
 

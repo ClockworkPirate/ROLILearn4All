@@ -1,4 +1,4 @@
-export const INSTRUMENTS={acoustic_grand_piano:'Grand Piano',electric_piano_1:'Electric Piano',drawbar_organ:'Organ'};
+export const INSTRUMENTS={acoustic_grand_piano:'Grand Piano',electric_piano_1:'Electric Piano',drawbar_organ:'Organ',music_box:'Music Box',xylophone:'Xylophone'};
 export function noteNumber(name){const match=/^([A-G])([#b]?)(-?\d+)$/.exec(name);if(!match)throw Error('Invalid sample pitch');return (Number(match[3])+1)*12+{C:0,D:2,E:4,F:5,G:7,A:9,B:11}[match[1]]+(match[2]==='#'?1:match[2]==='b'?-1:0);}
 export class Piano {
  constructor(context){this.context=context;this.master=context.createGain();this.master.gain.value=.7;const compressor=context.createDynamicsCompressor();this.master.connect(compressor).connect(context.destination);this.voices=new Map();this.cache=new Map();this.instrument=null;this.samples=null;this.loading=null;}
@@ -14,3 +14,4 @@ export class Piano {
  clear(prefix=''){for(const key of this.voices.keys())if(key.startsWith(prefix))this.stop(key);}
 }
 export function decodeNote(data){if(data.length<3)return null;const kind=data[0]&240;if(kind!==128&&kind!==144)return null;return {channel:data[0]&15,pitch:data[1],velocity:data[2],on:kind===144&&data[2]>0};}
+
